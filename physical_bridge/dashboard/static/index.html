@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Physical Bridge</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">⇄</span>
+      <div>
+        <h1>Physical Bridge</h1>
+        <div class="sub" id="cfgpath">connecting…</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <span class="pill" id="conn"><span class="dot"></span><span>offline</span></span>
+      <button id="arm" class="arm" title="Stop / resume sending to hardware outputs. Virtual devices keep updating.">…</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="side">
+      <section>
+        <h2>Inputs</h2>
+        <div id="inputs" class="cards"></div>
+      </section>
+      <section>
+        <h2>Outputs</h2>
+        <div id="outputs" class="cards"></div>
+      </section>
+      <section>
+        <h2>Unrouted addresses</h2>
+        <p class="hint">Messages that arrived but matched no stream. Copy an address into a stream's <code>source</code>.</p>
+        <div id="unrouted" class="unrouted"></div>
+      </section>
+    </aside>
+
+    <div class="content">
+      <section>
+        <h2>Streams <span class="hint inline">input → pipeline → output</span></h2>
+        <div id="streams"></div>
+      </section>
+      <section id="virtual-section">
+        <h2>Virtual devices <span class="hint inline">decoded from the exact bytes a microcontroller would receive</span></h2>
+        <div id="virtual" class="vgrid"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# "Connect your first device": one servo on an Arduino Uno + its virtual twin.
+# Run:  physical-bridge -c examples/configs/first_device.yaml
+outputs:
+  arduino:
+    type: serial
+    port: auto            # or /dev/ttyACM0 (Linux), /dev/cu.usbmodem* (macOS), COM3 (Windows)
+    baud: 115200
+  screen:
+    type: virtual
+
+streams:
+  servo:
+    type: value
+    source: /pb/servo
+    input_range: [0, 1]   # range of the dashboard test slider
+    pipeline:
+      - map: {in: [0, 1], out: [0, 180]}
+      - smooth: {time: 0.1}
+    safety: {min: 10, max: 170, max_speed: 120}
+    outputs: [arduino, screen]
