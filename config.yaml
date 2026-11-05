@@ -1,0 +1,101 @@
+# Physical Bridge configuration
+# ------------------------------------------------------------------
+# Works out of the box with no hardware: every stream goes to a virtual
+# device shown in the dashboard (http://localhost:8080).  Uncomment the
+# serial output and add it to a stream's `outputs:` to drive real hardware.
+#
+# Data flow:  input (OSC / WebSocket / MIDI) --> stream --> pipeline --> outputs
+# A stream's `type` is the type of data it RECEIVES: bits | grid | angles | value.
+# The pipeline may change it (e.g. dither turns a grid into bits).
+
+bridge:
+  tick_hz: 60            # how often smoothing / easing / speed limits update
+  start_armed: true      # false = hardware outputs start paused (arm in dashboard)
+
+dashboard:
+  host: 127.0.0.1        # 0.0.0.0 to open the dashboard from other machines
+  port: 8080
+
+inputs:
+  osc:
+    enabled: true
+    port: 9000           # TouchDesigner OSC Out / Unreal OSC / Blender send here
+  websocket:
+    enabled: true
+    port: 9001           # JSON: {"stream": "arm", "data": [0.5, 0.2]}
+  midi:
+    enabled: false       # needs: pip install "physical-bridge[midi]"
+    port: null           # part of the device name, null = first one
+    normalize: true      # CC / velocity as 0..1
+
+outputs:
+  screen:                # a virtual device rendered in the dashboard
+    type: virtual
+    display: auto        # auto | matrix | servos | meter
+    led_color: "#ff4d2e"
+
+  # arduino:
+  #   type: serial
+  #   port: auto          # or /dev/ttyACM0, /dev/ttyUSB0, COM3 ...
+  #   baud: 115200
+
+  # bus:                  # several boards on one RS485 line
+  #   type: rs485
+  #   port: /dev/ttyUSB1
+  #   baud: 115200
+  #   devices: [1, 2]     # addresses to poll for the status panel
+
+  # forward:             # send the processed data on as OSC
+  #   type: osc
+  #   host: 127.0.0.1
+  #   port: 9100
+
+streams:
+  # A video / TOP from your app, shrunk to an 16x16 LED matrix and dithered.
+  matrix:
+    type: grid
+    source: /pb/matrix   # OSC address (WebSocket: "stream": "matrix")
+    input_range: [0, 1]  # TouchDesigner / Blender send 0..1 floats
+    pipeline:
+      - resize: {width: 16, height: 16, mode: area}
+      - dither: {method: floyd_steinberg}
+    outputs: [screen]
+
+  # A brightness map for a dimmable LED grid, with an LED power budget.
+  glow:
+    type: grid
+    source: /pb/glow
+    input_range: [0, 1]
+    pipeline:
+      - resize: {width: 8, height: 8}
+      - gamma: {value: 2.2}
+      - smooth: {time: 0.1}
+    safety:
+      max_mean: 96       # average brightness cap (protects your power supply)
+    outputs: [screen]
+
+  # Three servos driven by 0..1 values.
+  arm:
+    type: angles
+    source: /pb/arm
+    input_range: [0, 1]
+    pipeline:
+      - map: {in: [0, 1], out: [0, 180]}
+      - deadband: {threshold: 0.5}
+      - smooth: {time: 0.08}
+      - rate_limit: {hz: 50}
+    safety:              # always applied last, cannot be bypassed
+      min: 10
+      max: 170
+      max_speed: 180     # degrees per second
+    outputs: [screen]
+
+  # A single value, eased.
+  dimmer:
+    type: value
+    source: /pb/dimmer
+    input_range: [0, 1]
+    pipeline:
+      - ease: {duration: 0.6, curve: ease_in_out}
+      - map: {in: [0, 1], out: [0, 255]}
+    outputs: [screen]

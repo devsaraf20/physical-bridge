@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physical-bridge"
+version = "0.1.0"
+description = "Route data from creative software (TouchDesigner, Unreal, Blender) to physical hardware."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "aiohttp>=3.8",
+    "numpy>=1.21",
+    "PyYAML>=6.0",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+midi = ["mido>=1.2", "python-rtmidi>=1.4"]
+dev = ["pytest>=7", "pytest-asyncio>=0.21"]
+
+[project.scripts]
+physical-bridge = "physical_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["physical_bridge*"]
+
+[tool.setuptools.package-data]
+physical_bridge = ["starter_config.yaml", "dashboard/static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

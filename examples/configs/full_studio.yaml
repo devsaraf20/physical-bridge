@@ -1,0 +1,92 @@
+# Everything at once: USB Arduino, ESP32 over Wi-Fi, an RS485 bus, OSC
+# forwarding and MIDI.  Adjust ports / addresses to your setup.
+bridge:
+  tick_hz: 100
+  start_armed: false      # hardware stays still until you click ARM in the dashboard
+
+dashboard: {host: 0.0.0.0, port: 8080}
+
+inputs:
+  osc: {enabled: true, port: 9000}
+  websocket: {enabled: true, port: 9001}
+  midi: {enabled: true, port: "nanoKONTROL", normalize: true}
+
+outputs:
+  servos_uno:
+    type: serial
+    port: /dev/ttyACM0
+    baud: 115200
+  matrix_esp32:
+    type: serial
+    port: "socket://192.168.1.50:3333"   # pb_led_matrix_esp32 with USE_WIFI 1
+    max_fps: 40
+  bus:
+    type: rs485
+    port: /dev/ttyUSB0
+    baud: 250000
+    devices: [1, 2, 3]
+    rts_control: false                   # true if your adapter needs RTS for DE/RE
+  lights_desk:
+    type: osc
+    host: 192.168.1.20
+    port: 7700
+    prefix: /bridge/
+  preview:
+    type: virtual
+    baud: 115200
+
+streams:
+  # Video -> 16x16 WS2812 panel, power-limited
+  wall:
+    type: grid
+    source: /pb/wall
+    input_range: [0, 1]
+    pipeline:
+      - resize: {width: 16, height: 16, mode: area}
+      - flip: {horizontal: false, vertical: false, rotate: 0}
+      - gamma: {value: 2.2}
+      - rate_limit: {hz: 40}
+    safety: {max: 200, max_mean: 50}
+    outputs: [matrix_esp32, preview]
+
+  # Same source, dithered to 1-bit for a MAX7219 module on the RS485 bus
+  dots:
+    type: grid
+    source: /pb/wall
+    input_range: [0, 1]
+    pipeline:
+      - resize: {width: 8, height: 8}
+      - dither: {method: bayer, size: 4}
+    outputs: [{name: bus, address: 3}, preview]
+
+  # Four MIDI faders -> four servos with per-servo travel
+  faders:
+    type: angles
+    source: [/midi/cc/1/0, /midi/cc/1/1, /midi/cc/1/2, /midi/cc/1/3]
+    pipeline:
+      - map: {in: [0, 1], out: [[0, 180], [0, 180], [30, 150], [45, 135]]}
+      - ease: {duration: 0.25, curve: cubic_in_out}
+    safety:
+      min: [5, 5, 30, 45]
+      max: [175, 175, 150, 135]
+      max_speed: 200
+    outputs: [servos_uno, preview]
+
+  # Two steppers on bus node 1 and 2, tracked from Unreal
+  turntables:
+    type: angles
+    source: /pb/turntables
+    pipeline:
+      - deadband: {threshold: 0.2}
+    safety: {max_speed: 360}
+    outputs: [{name: bus, address: 1}, {name: bus, address: 2}, preview]
+
+  # A value forwarded to a lighting desk and shown in the dashboard
+  intensity:
+    type: value
+    source: /pb/intensity
+    input_range: [0, 1]
+    pipeline:
+      - smooth: {time: 0.3}
+    outputs: [lights_desk, preview]
+    keepalive: 1.0        # resend every second even if unchanged
